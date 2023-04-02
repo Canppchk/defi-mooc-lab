@@ -137,6 +137,17 @@ contract LiquidationOperator is IUniswapV2Callee {
 
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
+
+    IERC20 constant WBTC = IERC20(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
+    IWETH constant WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 constant USDT = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
+    IUniswapV2Factory constant uniswapV2Factory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+    IUniswapV2Pair immutable uniswapV2Pair_WBTC_USDT; // WBTC/USDT
+    IUniswapV2Pair immutable uniswapV2Pair_WBTC_WETH; // WBTC/WETH
+    ILendingPool constant lendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    address constant liquidationTarget = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
+    uint debt_USDT;
+
     // END TODO
 
     // some helper function, it is totally fine if you can finish the lab without using these function
@@ -180,22 +191,46 @@ contract LiquidationOperator is IUniswapV2Callee {
     constructor() {
         // TODO: (optional) initialize your contract
         //   *** Your code here ***
+
+        uniswapV2Pair_WBTC_USDT = IUniswapV2Pair(uniswapV2Factory.getPair(address(WBTC), address(USDT))); // Pool1
+        uniswapV2Pair_WBTC_WETH = IUniswapV2Pair(uniswapV2Factory.getPair(address(WBTC), address(WETH))); // Pool2
+
         // END TODO
     }
 
     // TODO: add a `receive` function so that you can withdraw your WETH
     //   *** Your code here ***
+
+    receive() external payable {}
+
     // END TODO
 
     // required by the testing script, entry for your liquidation call
-    function operate() external {
+    function operate(uint256 _debt_USDT) external {
         // TODO: implement your liquidation logic
 
         // 0. security checks and initializing variables
         //    *** Your code here ***
 
+        uint256 totalCollateralETH;
+        uint256 totalDebtETH;
+        uint256 availableBorrowsETH;
+        uint256 currentLiquidationThreshold;
+        uint256 ltv;
+
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
+
+        uint256 healthFactor;
+        (
+            totalCollateralETH,
+            totalDebtETH,
+            availableBorrowsETH,
+            currentLiquidationThreshold,
+            ltv,
+            healthFactor
+        ) = lendingPool.getUserAccountData(liquidationTarget);
+        require(healthFactor < (10 ** health_factor_decimals), "Cannot liquidate; health factor must be below 1" );
 
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
@@ -204,8 +239,15 @@ contract LiquidationOperator is IUniswapV2Callee {
         // (please feel free to develop other workflows as long as they liquidate the target user successfully)
         //    *** Your code here ***
 
+        debt_USDT = _debt_USDT;
+        uniswapV2Pair_WBTC_USDT.swap(0, debt_USDT, address(this), "$");
+
         // 3. Convert the profit into ETH and send back to sender
         //    *** Your code here ***
+
+        uint balance = WETH.balanceOf(address(this));
+        WETH.withdraw(balance);
+        payable(msg.sender).transfer(address(this).balance);
 
         // END TODO
     }
@@ -222,14 +264,32 @@ contract LiquidationOperator is IUniswapV2Callee {
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
 
+        assert(msg.sender == address(uniswapV2Pair_WBTC_USDT));
+        (uint256 reserve_WBTC, uint256 reserve_USDT, ) = uniswapV2Pair_WBTC_USDT.getReserves(); // WBTC/USDT
+        (uint256 reserve_WBTC_Pool2, uint256 reserve_WETH_Pool2, ) = uniswapV2Pair_WBTC_WETH.getReserves(); // WBTC/WETH
+
         // 2.1 liquidate the target user
         //    *** Your code here ***
+
+        uint debtToCover = amount1;
+        USDT.approve(address(lendingPool), debtToCover);
+        lendingPool.liquidationCall(address(WBTC), address(USDT), liquidationTarget, debtToCover, false);
+        uint collateral_WBTC = WBTC.balanceOf(address(this));
+        console.log("Collateral WBTC :", collateral_WBTC);
 
         // 2.2 swap WBTC for other things or repay directly
         //    *** Your code here ***
 
         // 2.3 repay
         //    *** Your code here ***
+
+        uint repay_WBTC = getAmountIn(debtToCover, reserve_WBTC, reserve_USDT);
+        console.log("Repay WBTC :", repay_WBTC);
+        WBTC.transfer(address(uniswapV2Pair_WBTC_USDT), repay_WBTC);
+        uint balanceAfterRepay = WBTC.balanceOf(address(this)); // convert to WETH
+        WBTC.transfer(address(uniswapV2Pair_WBTC_WETH), balanceAfterRepay);
+        uint amountOut_WETH = getAmountOut(balanceAfterRepay, reserve_WBTC_Pool2, reserve_WETH_Pool2);
+        uniswapV2Pair_WBTC_WETH.swap(0, amountOut_WETH, address(this), "");
         
         // END TODO
     }

@@ -1,5 +1,12 @@
 # Hands-on Exercise: Flash Loan based Liquidation
 
+#### Modified by Papon Choonhaklai 6210503691
+Kasetsart University , CeFi vs DeFi course 2023
+
+### Lab 2
+Problem 2: Liquidate account`0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F` by using 2000, 5000, and 10000 USDT and display the profit.
+Problem 3: Liquidate account`0x63f6037d3e9d51ad865056BF7792029803b6eEfD` by using 8,128.956343 USDC and display the profit.
+
 ## Exercise
 In this exercise, you are expected to implement a smart contract that performs a flash loan based liquidation.
 
