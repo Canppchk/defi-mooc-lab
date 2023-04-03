@@ -132,7 +132,7 @@ interface IUniswapV2Pair {
 
 // ----------------------IMPLEMENTATION------------------------------
 
-contract LiquidationOperator is IUniswapV2Callee {
+contract LiquidationOperator_problem2 is IUniswapV2Callee {
     uint8 public constant health_factor_decimals = 18;
 
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
@@ -279,6 +279,7 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 2.2 swap WBTC for other things or repay directly
         //    *** Your code here ***
+        //    use repay directly
 
         // 2.3 repay
         //    *** Your code here ***
